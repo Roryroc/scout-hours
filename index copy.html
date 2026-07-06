@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scout Volunteer Hours Tracker</title>
+<style>
+  :root {
+    --blue: #1a5fb4;
+    --blue-dark: #103d78;
+    --green: #2e7d32;
+    --red: #c62828;
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --border: #dde3ea;
+    --text: #1c2530;
+    --muted: #6b7785;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 60px;
+  }
+  header {
+    background: var(--blue);
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+  }
+  header .sub {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .card h2 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--blue-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  input[type=text], input[type=date], input[type=time], select, textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: #fff;
+    color: var(--text);
+  }
+  textarea { resize: vertical; font-family: inherit; }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  @media (max-width: 520px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--blue);
+    color: white;
+  }
+  button.secondary {
+    background: #e8edf3;
+    color: var(--blue-dark);
+  }
+  button.danger {
+    background: #fdeaea;
+    color: var(--red);
+  }
+  button.ghost {
+    background: transparent;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.6);
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+  .table-wrap { overflow-x: auto; }
+  .row-actions button {
+    padding: 4px 8px;
+    font-size: 12px;
+    margin-right: 4px;
+  }
+  .empty {
+    color: var(--muted);
+    font-size: 14px;
+    padding: 12px 0;
+    text-align: center;
+  }
+  .total-banner {
+    background: #eaf3ea;
+    border: 1px solid #c8e0c8;
+    color: var(--green);
+    font-weight: 700;
+    font-size: 18px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .status-pill {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.15);
+    color: white;
+  }
+  .status-pill.on { background: #2e7d32; }
+  .status-pill.off { background: rgba(255,255,255,0.15); }
+  .status-pill.err { background: #c62828; }
+  .hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--blue-dark);
+    font-size: 14px;
+  }
+  .month-picker-row {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .month-picker-row > div { flex: 1; min-width: 160px; }
+  .tab-bar {
+    display: flex;
+    gap: 8px;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 12px 16px 0 16px;
+  }
+  .tab-btn {
+    background: #e8edf3;
+    color: var(--blue-dark);
+    flex: 1;
+  }
+  .tab-btn.active {
+    background: var(--blue);
+    color: white;
+  }
+  .receipt-thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .receipt-file-icon {
+    font-size: 22px;
+  }
+  #receiptPreview {
+    margin-top: 8px;
+  }
+  #receiptPreview img {
+    max-width: 160px;
+    max-height: 160px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Scout Volunteer Hours</h1>
+    <div class="sub">Track, total, and report your volunteer time</div>
+  </div>
+  <div id="syncControls">
+    <span id="syncStatus" class="status-pill off">Not connected</span>
+    <button id="signInBtn" class="ghost" style="display:none;">Sign in with Google</button>
+    <button id="signOutBtn" class="ghost" style="display:none;">Sign out</button>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <button type="button" class="tab-btn active" id="tabHoursBtn">Volunteer Hours</button>
+  <button type="button" class="tab-btn" id="tabExpensesBtn">Expenses</button>
+</div>
+
+<main>
+
+<div id="hoursView">
+
+  <div class="card" id="entryCard">
+    <h2 id="formTitle">Add Entry</h2>
+    <form id="entryForm">
+      <div class="form-grid">
+        <div>
+          <label for="dateInput">Date</label>
+          <input type="date" id="dateInput" required>
+        </div>
+        <div></div>
+        <div>
+          <label for="startInput">Start time</label>
+          <input type="time" id="startInput" required>
+        </div>
+        <div>
+          <label for="endInput">Stop time</label>
+          <input type="time" id="endInput" required>
+        </div>
+        <div class="full">
+          <label for="categoryInput">Category (optional)</label>
+          <select id="categoryInput">
+            <option value="">— select —</option>
+            <option>Meeting</option>
+            <option>Event / Outing</option>
+            <option>Fundraising</option>
+            <option>Training</option>
+            <option>Admin / Planning</option>
+            <option>Community Service</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="activityInput">Activity</label>
+          <textarea id="activityInput" rows="2" placeholder="e.g. Merit badge counseling, Committee meeting..." required></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" id="saveBtn">Add Entry</button>
+        <button type="button" id="cancelEditBtn" class="secondary" style="display:none;">Cancel edit</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Entries</h2>
+    <div class="table-wrap">
+      <table id="entriesTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Start</th>
+            <th>Stop</th>
+            <th>Duration</th>
+            <th>Category</th>
+            <th>Activity</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="entriesBody"></tbody>
+      </table>
+    </div>
+    <div id="emptyState" class="empty" style="display:none;">No entries yet. Add your first one above.</div>
+  </div>
+
+  <div class="card">
+    <h2>Monthly Report</h2>
+    <div class="month-picker-row">
+      <div>
+        <label for="monthPicker">Month</label>
+        <input type="month" id="monthPicker">
+      </div>
+      <div style="flex:0;">
+        <button id="exportCsvBtn" class="secondary">Export CSV</button>
+      </div>
+    </div>
+    <div class="total-banner">
+      <span id="monthTotalLabel">Total: 0.00 hours</span>
+      <span id="monthCountLabel">0 activities</span>
+    </div>
+    <label for="summaryText">Copy/paste this into your reporting app</label>
+    <textarea id="summaryText" rows="8" readonly></textarea>
+    <div class="btn-row">
+      <button id="copySummaryBtn">Copy to Clipboard</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Backup &amp; Sync</h2>
+    <p class="hint">This app stores data in your browser. Use these tools to back up your data or move it between devices. Optional: connect Google Drive below so your Mac and phone stay in sync automatically.</p>
+    <div class="btn-row">
+      <button id="exportJsonBtn" class="secondary">Download Backup (JSON)</button>
+      <button id="importJsonBtn" class="secondary">Restore Backup (JSON)</button>
+      <input type="file" id="importFileInput" accept="application/json" style="display:none;">
+    </div>
+    <details style="margin-top:16px;">
+      <summary>Google Drive sync setup</summary>
+      <p class="hint">Paste the OAuth Client ID from your Google Cloud project (see README for steps). This is stored only in this browser.</p>
+      <label for="clientIdInput">Google OAuth Client ID</label>
+      <input type="text" id="clientIdInput" placeholder="xxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com">
+      <div class="btn-row">
+        <button id="saveClientIdBtn" class="secondary">Save Client ID</button>
+        <button id="syncNowBtn" class="secondary" style="display:none;">Sync now</button>
+      </div>
+      <div id="driveMsg" class="hint"></div>
+    </details>
+  </div>
+
+</div>
+
+<div id="expensesView" style="display:none;">
+
+  <div class="card" id="expenseCard">
+    <h2 id="expenseFormTitle">Add Expense</h2>
+    <form id="expenseForm">
+      <div class="form-grid">
+        <div>
+          <label for="expenseNameInput">Expense name</label>
+          <input type="text" id="expenseNameInput" placeholder="e.g. Camping propane" required>
+        </div>
+        <div>
+          <label for="expenseAmountInput">Amount ($)</label>
+          <input type="text" inputmode="decimal" id="expenseAmountInput" placeholder="0.00" required>
+        </div>
+        <div>
+          <label for="expenseDateInput">Date</label>
+          <input type="date" id="expenseDateInput" required>
+        </div>
+        <div></div>
+        <div class="full">
+          <label for="expensePurposeInput">What it was for</label>
+          <textarea id="expensePurposeInput" rows="2" placeholder="e.g. Fuel for troop campout cooking equipment" required></textarea>
+        </div>
+        <div class="full">
+          <label for="receiptInput">Receipt (photo or file, optional)</label>
+          <input type="file" id="receiptInput" accept="image/*,application/pdf" capture="environment">
+          <div id="receiptPreview"></div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" id="expenseSaveBtn">Add Expense</button>
+        <button type="button" id="expenseCancelEditBtn" class="secondary" style="display:none;">Cancel edit</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Expenses</h2>
+    <div class="table-wrap">
+      <table id="expensesTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Name</th>
+            <th>Purpose</th>
+            <th>Amount</th>
+            <th>Receipt</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="expensesBody"></tbody>
+      </table>
+    </div>
+    <div id="expensesEmptyState" class="empty" style="display:none;">No expenses yet. Add your first one above.</div>
+  </div>
+
+  <div class="card">
+    <h2>Monthly Expense Report</h2>
+    <div class="month-picker-row">
+      <div>
+        <label for="expenseMonthPicker">Month</label>
+        <input type="month" id="expenseMonthPicker">
+      </div>
+      <div style="flex:0;">
+        <button id="exportExpenseCsvBtn" class="secondary">Export CSV</button>
+      </div>
+    </div>
+    <div class="total-banner">
+      <span id="expenseMonthTotalLabel">Total: $0.00</span>
+      <span id="expenseMonthCountLabel">0 expenses</span>
+    </div>
+    <label for="expenseSummaryText">Copy/paste this into your reporting app</label>
+    <textarea id="expenseSummaryText" rows="8" readonly></textarea>
+    <div class="btn-row">
+      <button id="copyExpenseSummaryBtn">Copy to Clipboard</button>
+    </div>
+  </div>
+
+</div>
+
+</main>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Storage keys ----------
+  const LS_ENTRIES = "scoutHours.entries.v1";
+  const LS_EXPENSES = "scoutHours.expenses.v1";
+  const LS_SETTINGS = "scoutHours.settings.v1";
+  const LS_UPDATED_AT = "scoutHours.updatedAt.v1";
+  const DRIVE_FILENAME = "scout-hours-data.json";
+  const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+  const IDB_NAME = "scoutHoursReceipts";
+  const IDB_STORE = "receipts";
+
+  // ---------- State ----------
+  let entries = [];
+  let expenses = [];
+  let settings = { clientId: "", driveFileId: "" };
+  let editingId = null;
+  let editingExpenseId = null;
+  let pendingReceiptFile = null;
+  let removeReceiptOnSave = false;
+  let tokenClient = null;
+  let accessToken = null;
+  let gisReady = false;
+  let syncTimer = null;
+
+  // ---------- Utilities ----------
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+  }
+
+  function timeToMinutes(t) {
+    const parts = t.split(":");
+    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  }
+
+  function computeDurationMinutes(start, end) {
+    let s = timeToMinutes(start);
+    let e = timeToMinutes(end);
+    let diff = e - s;
+    if (diff <= 0) diff += 24 * 60; // crosses midnight (or identical -> treat as 24h wrap, edge case)
+    return diff;
+  }
+
+  function formatHM(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h + "h " + String(m).padStart(2, "0") + "m";
+  }
+
+  function decimalHours(minutes) {
+    return (minutes / 60).toFixed(2);
+  }
+
+  function displayDate(iso) {
+    const [y, m, d] = iso.split("-");
+    return `${m}/${d}/${y}`;
+  }
+
+  function todayIso() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function currentMonthValue() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function(c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  // ---------- Persistence ----------
+  function loadEntries() {
+    try {
+      const raw = localStorage.getItem(LS_ENTRIES);
+      entries = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      entries = [];
+    }
+  }
+
+  function saveEntries(skipSync) {
+    localStorage.setItem(LS_ENTRIES, JSON.stringify(entries));
+    localStorage.setItem(LS_UPDATED_AT, String(Date.now()));
+    render();
+    if (!skipSync) scheduleSync();
+  }
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(LS_SETTINGS);
+      settings = raw ? JSON.parse(raw) : { clientId: "", driveFileId: "" };
+    } catch (e) {
+      settings = { clientId: "", driveFileId: "" };
+    }
+  }
+
+  function saveSettings() {
+    localStorage.setItem(LS_SETTINGS, JSON.stringify(settings));
+  }
+
+  function getUpdatedAt() {
+    return parseInt(localStorage.getItem(LS_UPDATED_AT) || "0", 10);
+  }
+
+  function bumpUpdatedAt() {
+    localStorage.setItem(LS_UPDATED_AT, String(Date.now()));
+  }
+
+  function loadExpenses() {
+    try {
+      const raw = localStorage.getItem(LS_EXPENSES);
+      expenses = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      expenses = [];
+    }
+  }
+
+  function saveExpenses(skipSync) {
+    localStorage.setItem(LS_EXPENSES, JSON.stringify(expenses));
+    bumpUpdatedAt();
+    renderExpenses();
+    if (!skipSync) scheduleSync();
+  }
+
+  // ---------- IndexedDB (local receipt file storage) ----------
+  let idbPromise = null;
+  function openIdb() {
+    if (idbPromise) return idbPromise;
+    idbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error("IndexedDB not supported in this browser")); return; }
+      const req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = () => { req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return idbPromise;
+  }
+
+  async function idbPut(key, value) {
+    const db = await openIdb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function idbGet(key) {
+    const db = await openIdb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbDelete(key) {
+    const db = await openIdb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  // ---------- CRUD ----------
+  function addOrUpdateEntry(data) {
+    if (editingId) {
+      const idx = entries.findIndex(e => e.id === editingId);
+      if (idx >= 0) entries[idx] = Object.assign({}, entries[idx], data);
+      editingId = null;
+    } else {
+      entries.push(Object.assign({ id: uid() }, data));
+    }
+    saveEntries();
+  }
+
+  function deleteEntry(id) {
+    if (!confirm("Delete this entry?")) return;
+    entries = entries.filter(e => e.id !== id);
+    saveEntries();
+  }
+
+  function startEdit(id) {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    editingId = id;
+    document.getElementById("dateInput").value = entry.date;
+    document.getElementById("startInput").value = entry.start;
+    document.getElementById("endInput").value = entry.end;
+    document.getElementById("categoryInput").value = entry.category || "";
+    document.getElementById("activityInput").value = entry.activity;
+    document.getElementById("formTitle").textContent = "Edit Entry";
+    document.getElementById("saveBtn").textContent = "Save Changes";
+    document.getElementById("cancelEditBtn").style.display = "inline-block";
+    document.getElementById("entryCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    document.getElementById("entryForm").reset();
+    document.getElementById("dateInput").value = todayIso();
+    document.getElementById("formTitle").textContent = "Add Entry";
+    document.getElementById("saveBtn").textContent = "Add Entry";
+    document.getElementById("cancelEditBtn").style.display = "none";
+  }
+
+  // ---------- Expense CRUD ----------
+  async function addOrUpdateExpense(data) {
+    let id;
+    if (editingExpenseId) {
+      id = editingExpenseId;
+      const idx = expenses.findIndex(x => x.id === id);
+      if (idx >= 0) {
+        const prevReceipt = expenses[idx].receipt;
+        expenses[idx] = Object.assign({}, expenses[idx], data);
+        if (!pendingReceiptFile && !removeReceiptOnSave) {
+          expenses[idx].receipt = prevReceipt; // keep existing receipt untouched
+        }
+      }
+      editingExpenseId = null;
+    } else {
+      id = uid();
+      expenses.push(Object.assign({ id, receipt: { hasFile: false, driveFileId: null, mimeType: null, fileName: null } }, data));
+    }
+
+    if (removeReceiptOnSave) {
+      const exp = expenses.find(x => x.id === id);
+      if (exp && exp.receipt && exp.receipt.driveFileId) deleteDriveFile(exp.receipt.driveFileId);
+      if (exp) exp.receipt = { hasFile: false, driveFileId: null, mimeType: null, fileName: null };
+      await idbDelete(id).catch(() => {});
+    } else if (pendingReceiptFile) {
+      const exp = expenses.find(x => x.id === id);
+      if (exp && exp.receipt && exp.receipt.driveFileId) deleteDriveFile(exp.receipt.driveFileId); // old receipt replaced
+      await idbPut(id, { blob: pendingReceiptFile, mimeType: pendingReceiptFile.type, fileName: pendingReceiptFile.name }).catch(() => {});
+      if (exp) exp.receipt = { hasFile: true, driveFileId: null, mimeType: pendingReceiptFile.type, fileName: pendingReceiptFile.name };
+    }
+
+    pendingReceiptFile = null;
+    removeReceiptOnSave = false;
+    saveExpenses();
+  }
+
+  function deleteExpense(id) {
+    if (!confirm("Delete this expense?")) return;
+    const exp = expenses.find(x => x.id === id);
+    if (exp && exp.receipt && exp.receipt.driveFileId) deleteDriveFile(exp.receipt.driveFileId);
+    idbDelete(id).catch(() => {});
+    expenses = expenses.filter(x => x.id !== id);
+    saveExpenses();
+  }
+
+  function startEditExpense(id) {
+    const exp = expenses.find(x => x.id === id);
+    if (!exp) return;
+    editingExpenseId = id;
+    pendingReceiptFile = null;
+    removeReceiptOnSave = false;
+    document.getElementById("expenseNameInput").value = exp.name;
+    document.getElementById("expenseAmountInput").value = exp.amount;
+    document.getElementById("expenseDateInput").value = exp.date;
+    document.getElementById("expensePurposeInput").value = exp.purpose;
+    document.getElementById("receiptInput").value = "";
+    renderReceiptPreviewForExisting(exp);
+    document.getElementById("expenseFormTitle").textContent = "Edit Expense";
+    document.getElementById("expenseSaveBtn").textContent = "Save Changes";
+    document.getElementById("expenseCancelEditBtn").style.display = "inline-block";
+    document.getElementById("expenseCard").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function cancelExpenseEdit() {
+    editingExpenseId = null;
+    pendingReceiptFile = null;
+    removeReceiptOnSave = false;
+    document.getElementById("expenseForm").reset();
+    document.getElementById("expenseDateInput").value = todayIso();
+    document.getElementById("receiptPreview").innerHTML = "";
+    document.getElementById("expenseFormTitle").textContent = "Add Expense";
+    document.getElementById("expenseSaveBtn").textContent = "Add Expense";
+    document.getElementById("expenseCancelEditBtn").style.display = "none";
+  }
+
+  function renderReceiptPreviewForExisting(exp) {
+    const preview = document.getElementById("receiptPreview");
+    if (!exp.receipt || !exp.receipt.hasFile) { preview.innerHTML = ""; return; }
+    preview.innerHTML = `<span class="hint">Current receipt: ${escapeHtml(exp.receipt.fileName || "file")} — choose a new file above to replace it, or <button type="button" id="removeReceiptBtn" class="secondary">remove it</button></span>`;
+    const btn = document.getElementById("removeReceiptBtn");
+    if (btn) btn.addEventListener("click", () => {
+      removeReceiptOnSave = true;
+      preview.innerHTML = `<span class="hint">Receipt will be removed when you save.</span>`;
+    });
+  }
+
+  // ---------- Rendering ----------
+  function sortedEntries() {
+    return [...entries].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1; // newest first
+      return a.start < b.start ? 1 : -1;
+    });
+  }
+
+  function render() {
+    renderTable();
+    renderSummary();
+  }
+
+  function renderExpenses() {
+    renderExpensesTable();
+    renderExpenseSummary();
+  }
+
+  function renderTable() {
+    const body = document.getElementById("entriesBody");
+    const list = sortedEntries();
+    body.innerHTML = "";
+    document.getElementById("emptyState").style.display = list.length ? "none" : "block";
+    for (const e of list) {
+      const mins = computeDurationMinutes(e.start, e.end);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${displayDate(e.date)}</td>
+        <td>${e.start}</td>
+        <td>${e.end}</td>
+        <td>${formatHM(mins)}<br><span class="hint">${decimalHours(mins)} hrs</span></td>
+        <td>${e.category ? escapeHtml(e.category) : "—"}</td>
+        <td>${escapeHtml(e.activity)}</td>
+        <td class="row-actions">
+          <button type="button" class="secondary" data-edit="${e.id}">Edit</button>
+          <button type="button" class="danger" data-del="${e.id}">Delete</button>
+        </td>
+      `;
+      body.appendChild(tr);
+    }
+    body.querySelectorAll("[data-edit]").forEach(btn => {
+      btn.addEventListener("click", () => startEdit(btn.getAttribute("data-edit")));
+    });
+    body.querySelectorAll("[data-del]").forEach(btn => {
+      btn.addEventListener("click", () => deleteEntry(btn.getAttribute("data-del")));
+    });
+  }
+
+  function entriesForMonth(monthValue) {
+    return entries.filter(e => e.date.slice(0, 7) === monthValue);
+  }
+
+  function renderSummary() {
+    const monthPicker = document.getElementById("monthPicker");
+    const monthValue = monthPicker.value || currentMonthValue();
+    const list = entriesForMonth(monthValue).sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.start < b.start ? -1 : 1;
+    });
+
+    let totalMinutes = 0;
+    const lines = [];
+    for (const e of list) {
+      const mins = computeDurationMinutes(e.start, e.end);
+      totalMinutes += mins;
+      const catTag = e.category ? ` [${e.category}]` : "";
+      lines.push(`${displayDate(e.date)}: ${e.activity}${catTag} (${decimalHours(mins)} hrs)`);
+    }
+
+    const [y, m] = monthValue.split("-");
+    const monthName = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleString("default", { month: "long" });
+
+    document.getElementById("monthTotalLabel").textContent = `Total: ${decimalHours(totalMinutes)} hours`;
+    document.getElementById("monthCountLabel").textContent = `${list.length} ${list.length === 1 ? "activity" : "activities"}`;
+
+    let text = `Volunteer Hours - ${monthName} ${y}\n\n`;
+    if (lines.length) {
+      text += lines.join("\n") + "\n\n";
+    } else {
+      text += "(no entries this month)\n\n";
+    }
+    text += `Total: ${decimalHours(totalMinutes)} hours (${list.length} ${list.length === 1 ? "activity" : "activities"})`;
+
+    document.getElementById("summaryText").value = text;
+  }
+
+  // ---------- Expense rendering ----------
+  function sortedExpenses() {
+    return [...expenses].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }
+
+  function formatMoney(n) {
+    const num = Number(n) || 0;
+    return "$" + num.toFixed(2);
+  }
+
+  function renderExpensesTable() {
+    const body = document.getElementById("expensesBody");
+    const list = sortedExpenses();
+    body.innerHTML = "";
+    document.getElementById("expensesEmptyState").style.display = list.length ? "none" : "block";
+    for (const x of list) {
+      const tr = document.createElement("tr");
+      const receiptCell = x.receipt && x.receipt.hasFile
+        ? `<button type="button" class="secondary" data-view="${x.id}">View</button>`
+        : "—";
+      tr.innerHTML = `
+        <td>${displayDate(x.date)}</td>
+        <td>${escapeHtml(x.name)}</td>
+        <td>${escapeHtml(x.purpose)}</td>
+        <td>${formatMoney(x.amount)}</td>
+        <td>${receiptCell}</td>
+        <td class="row-actions">
+          <button type="button" class="secondary" data-editexp="${x.id}">Edit</button>
+          <button type="button" class="danger" data-delexp="${x.id}">Delete</button>
+        </td>
+      `;
+      body.appendChild(tr);
+    }
+    body.querySelectorAll("[data-editexp]").forEach(btn => btn.addEventListener("click", () => startEditExpense(btn.getAttribute("data-editexp"))));
+    body.querySelectorAll("[data-delexp]").forEach(btn => btn.addEventListener("click", () => deleteExpense(btn.getAttribute("data-delexp"))));
+    body.querySelectorAll("[data-view]").forEach(btn => btn.addEventListener("click", () => viewReceipt(btn.getAttribute("data-view"))));
+  }
+
+  function expensesForMonth(monthValue) {
+    return expenses.filter(x => x.date.slice(0, 7) === monthValue);
+  }
+
+  function renderExpenseSummary() {
+    const monthPicker = document.getElementById("expenseMonthPicker");
+    const monthValue = monthPicker.value || currentMonthValue();
+    const list = expensesForMonth(monthValue).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+    let total = 0;
+    const lines = [];
+    for (const x of list) {
+      total += Number(x.amount) || 0;
+      lines.push(`${displayDate(x.date)}: ${x.name} - ${formatMoney(x.amount)} (${x.purpose})`);
+    }
+
+    const [y, m] = monthValue.split("-");
+    const monthName = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleString("default", { month: "long" });
+
+    document.getElementById("expenseMonthTotalLabel").textContent = `Total: ${formatMoney(total)}`;
+    document.getElementById("expenseMonthCountLabel").textContent = `${list.length} ${list.length === 1 ? "expense" : "expenses"}`;
+
+    let text = `Expenses - ${monthName} ${y}\n\n`;
+    text += lines.length ? lines.join("\n") + "\n\n" : "(no expenses this month)\n\n";
+    text += `Total: ${formatMoney(total)} (${list.length} ${list.length === 1 ? "expense" : "expenses"})`;
+
+    document.getElementById("expenseSummaryText").value = text;
+  }
+
+  function exportExpenseCsv() {
+    const rows = [["Date", "Name", "Purpose", "Amount", "Has Receipt"]];
+    for (const x of sortedExpenses().slice().reverse()) {
+      rows.push([x.date, x.name, x.purpose, (Number(x.amount) || 0).toFixed(2), (x.receipt && x.receipt.hasFile) ? "Yes" : "No"]);
+    }
+    const csv = rows.map(r => r.map(csvEscape).join(",")).join("\n");
+    downloadBlob(csv, "scout-expenses.csv", "text/csv");
+  }
+
+  async function viewReceipt(id) {
+    const exp = expenses.find(x => x.id === id);
+    if (!exp || !exp.receipt || !exp.receipt.hasFile) return;
+    try {
+      let cached = await idbGet(id);
+      if (!cached && exp.receipt.driveFileId) {
+        if (!accessToken) { alert("Sign in to Google Drive to fetch this receipt from another device."); return; }
+        const blob = await downloadDriveFileBlob(exp.receipt.driveFileId);
+        cached = { blob, mimeType: exp.receipt.mimeType, fileName: exp.receipt.fileName };
+        await idbPut(id, cached).catch(() => {});
+      }
+      if (!cached) { alert("Receipt not available on this device yet."); return; }
+      const url = URL.createObjectURL(cached.blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      alert("Could not load receipt: " + err.message);
+    }
+  }
+
+  // ---------- CSV export ----------
+  function exportCsv() {
+    const rows = [["Date", "Start", "Stop", "Duration (hrs)", "Category", "Activity"]];
+    for (const e of sortedEntries().slice().reverse()) {
+      const mins = computeDurationMinutes(e.start, e.end);
+      rows.push([e.date, e.start, e.end, decimalHours(mins), e.category || "", e.activity]);
+    }
+    const csv = rows.map(r => r.map(csvEscape).join(",")).join("\n");
+    downloadBlob(csv, "scout-volunteer-hours.csv", "text/csv");
+  }
+
+  function csvEscape(val) {
+    const s = String(val);
+    if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function downloadBlob(content, filename, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- JSON backup/restore ----------
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result); // data URL
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function base64ToBlob(dataUrl) {
+    return fetch(dataUrl).then(r => r.blob());
+  }
+
+  async function exportJson() {
+    const expensesWithReceipts = [];
+    for (const x of expenses) {
+      const copy = Object.assign({}, x);
+      if (x.receipt && x.receipt.hasFile) {
+        const cached = await idbGet(x.id).catch(() => null);
+        if (cached && cached.blob) {
+          copy.receiptDataUrl = await blobToBase64(cached.blob);
+        }
+      }
+      expensesWithReceipts.push(copy);
+    }
+    downloadBlob(JSON.stringify({ entries, expenses: expensesWithReceipts, exportedAt: new Date().toISOString() }, null, 2),
+      "scout-volunteer-hours-backup.json", "application/json");
+  }
+
+  function importJsonFile(file) {
+    const reader = new FileReader();
+    reader.onload = async function() {
+      try {
+        const data = JSON.parse(reader.result);
+        const incomingEntries = Array.isArray(data) ? data : data.entries;
+        const incomingExpenses = Array.isArray(data) ? [] : (data.expenses || []);
+        if (!Array.isArray(incomingEntries)) throw new Error("Invalid file format");
+        if (!confirm(`Import ${incomingEntries.length} hour entries and ${incomingExpenses.length} expenses? This will REPLACE your current data (a merge is not performed). Cancel to abort.`)) return;
+        entries = incomingEntries;
+        for (const x of incomingExpenses) {
+          if (x.receiptDataUrl) {
+            try {
+              const blob = await base64ToBlob(x.receiptDataUrl);
+              await idbPut(x.id, { blob, mimeType: x.receipt ? x.receipt.mimeType : blob.type, fileName: x.receipt ? x.receipt.fileName : "receipt" });
+            } catch (e) { /* skip bad image data */ }
+          }
+          delete x.receiptDataUrl;
+        }
+        expenses = incomingExpenses;
+        saveEntries(true);
+        saveExpenses();
+        alert("Import complete.");
+      } catch (e) {
+        alert("Could not read this file: " + e.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ---------- Clipboard ----------
+  function copySummary() {
+    const textarea = document.getElementById("summaryText");
+    textarea.select();
+    textarea.setSelectionRange(0, 999999);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textarea.value).then(() => flashCopied()).catch(() => document.execCommand("copy") && flashCopied());
+    } else {
+      document.execCommand("copy");
+      flashCopied();
+    }
+  }
+
+  function flashCopied() {
+    const btn = document.getElementById("copySummaryBtn");
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  }
+
+  function copyExpenseSummary() {
+    const textarea = document.getElementById("expenseSummaryText");
+    textarea.select();
+    textarea.setSelectionRange(0, 999999);
+    const btn = document.getElementById("copyExpenseSummaryBtn");
+    const flash = () => { const orig = btn.textContent; btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = orig; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textarea.value).then(flash).catch(() => document.execCommand("copy") && flash());
+    } else {
+      document.execCommand("copy");
+      flash();
+    }
+  }
+
+  // ---------- Google Drive sync ----------
+  function driveMsg(text, isError) {
+    const el = document.getElementById("driveMsg");
+    el.textContent = text || "";
+    el.style.color = isError ? "var(--red)" : "var(--muted)";
+  }
+
+  function setSyncStatus(state) {
+    // state: 'off' | 'on' | 'err'
+    const pill = document.getElementById("syncStatus");
+    pill.className = "status-pill " + state;
+    pill.textContent = state === "on" ? "Synced with Drive" : state === "err" ? "Sync error" : "Not connected";
+  }
+
+  function initGoogle() {
+    if (!settings.clientId) return;
+    if (!window.google || !google.accounts || !google.accounts.oauth2) {
+      // GIS script not loaded yet, retry shortly
+      setTimeout(initGoogle, 300);
+      return;
+    }
+    gisReady = true;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: settings.clientId,
+      scope: DRIVE_SCOPE,
+      callback: (resp) => {
+        if (resp.error) {
+          driveMsg("Sign-in failed: " + resp.error, true);
+          setSyncStatus("err");
+          return;
+        }
+        accessToken = resp.access_token;
+        document.getElementById("signInBtn").style.display = "none";
+        document.getElementById("signOutBtn").style.display = "inline-block";
+        document.getElementById("syncNowBtn").style.display = "inline-block";
+        driveMsg("Signed in. Syncing...");
+        driveSync();
+      }
+    });
+    document.getElementById("signInBtn").style.display = "inline-block";
+  }
+
+  function signIn() {
+    if (!tokenClient) { driveMsg("Enter and save your Client ID first.", true); return; }
+    tokenClient.requestAccessToken({ prompt: "consent" });
+  }
+
+  function signOut() {
+    if (accessToken && window.google && google.accounts && google.accounts.oauth2) {
+      google.accounts.oauth2.revoke(accessToken, () => {});
+    }
+    accessToken = null;
+    document.getElementById("signInBtn").style.display = "inline-block";
+    document.getElementById("signOutBtn").style.display = "none";
+    document.getElementById("syncNowBtn").style.display = "none";
+    setSyncStatus("off");
+    driveMsg("Signed out. Your data stays saved in this browser.");
+  }
+
+  function driveHeaders(extra) {
+    return Object.assign({ Authorization: "Bearer " + accessToken }, extra || {});
+  }
+
+  async function findFileId() {
+    if (settings.driveFileId) return settings.driveFileId;
+    const q = encodeURIComponent(`name='${DRIVE_FILENAME}' and trashed=false`);
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name,modifiedTime)`, {
+      headers: driveHeaders()
+    });
+    if (!resp.ok) throw new Error("Drive search failed (" + resp.status + ")");
+    const data = await resp.json();
+    if (data.files && data.files.length) {
+      settings.driveFileId = data.files[0].id;
+      saveSettings();
+      return settings.driveFileId;
+    }
+    return null;
+  }
+
+  async function createFile(payload) {
+    const boundary = "scouthours_boundary";
+    const metadata = { name: DRIVE_FILENAME, mimeType: "application/json" };
+    const body =
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(payload)}\r\n` +
+      `--${boundary}--`;
+    const resp = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+      method: "POST",
+      headers: driveHeaders({ "Content-Type": `multipart/related; boundary=${boundary}` }),
+      body
+    });
+    if (!resp.ok) throw new Error("Drive create failed (" + resp.status + ")");
+    const data = await resp.json();
+    settings.driveFileId = data.id;
+    saveSettings();
+  }
+
+  async function updateFile(fileId, payload) {
+    const resp = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+      method: "PATCH",
+      headers: driveHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error("Drive update failed (" + resp.status + ")");
+  }
+
+  async function downloadFile(fileId) {
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: driveHeaders()
+    });
+    if (!resp.ok) throw new Error("Drive download failed (" + resp.status + ")");
+    return resp.json();
+  }
+
+  async function uploadReceiptFile(blob, mimeType, fileName) {
+    const boundary = "scouthours_receipt_" + Date.now();
+    const metadata = { name: fileName || ("receipt-" + Date.now()), mimeType: mimeType || "application/octet-stream" };
+    const pre = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n`;
+    const post = `\r\n--${boundary}--`;
+    const body = new Blob([pre, blob, post]);
+    const resp = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+      method: "POST",
+      headers: driveHeaders({ "Content-Type": `multipart/related; boundary=${boundary}` }),
+      body
+    });
+    if (!resp.ok) throw new Error("Receipt upload failed (" + resp.status + ")");
+    const data = await resp.json();
+    return data.id;
+  }
+
+  async function downloadDriveFileBlob(fileId) {
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: driveHeaders()
+    });
+    if (!resp.ok) throw new Error("Receipt download failed (" + resp.status + ")");
+    return resp.blob();
+  }
+
+  function deleteDriveFile(fileId) {
+    if (!accessToken || !fileId) return;
+    fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: "DELETE", headers: driveHeaders() }).catch(() => {});
+  }
+
+  async function uploadPendingReceipts() {
+    let changed = false;
+    for (const exp of expenses) {
+      if (exp.receipt && exp.receipt.hasFile && !exp.receipt.driveFileId) {
+        try {
+          const cached = await idbGet(exp.id);
+          if (cached && cached.blob) {
+            const fileId = await uploadReceiptFile(cached.blob, cached.mimeType, cached.fileName);
+            exp.receipt.driveFileId = fileId;
+            changed = true;
+          }
+        } catch (err) {
+          console.warn("Receipt upload failed for expense", exp.id, err);
+        }
+      }
+    }
+    if (changed) localStorage.setItem(LS_EXPENSES, JSON.stringify(expenses));
+    return changed;
+  }
+
+  async function driveSync() {
+    if (!accessToken) return;
+    try {
+      await uploadPendingReceipts();
+      let fileId = await findFileId();
+      if (!fileId) {
+        await createFile({ entries, expenses, updatedAt: getUpdatedAt() });
+        setSyncStatus("on");
+        driveMsg("Created new Drive file and uploaded your data.");
+        return;
+      }
+      const remote = await downloadFile(fileId);
+      const remoteUpdatedAt = remote && remote.updatedAt ? remote.updatedAt : 0;
+      const localUpdatedAt = getUpdatedAt();
+
+      if (remoteUpdatedAt > localUpdatedAt) {
+        entries = remote.entries || [];
+        expenses = remote.expenses || [];
+        localStorage.setItem(LS_ENTRIES, JSON.stringify(entries));
+        localStorage.setItem(LS_EXPENSES, JSON.stringify(expenses));
+        localStorage.setItem(LS_UPDATED_AT, String(remoteUpdatedAt));
+        render();
+        renderExpenses();
+        driveMsg("Pulled newer data from Drive.");
+      } else if (localUpdatedAt > remoteUpdatedAt) {
+        await updateFile(fileId, { entries, expenses, updatedAt: localUpdatedAt });
+        driveMsg("Pushed your changes to Drive.");
+      } else {
+        driveMsg("Already up to date.");
+      }
+      setSyncStatus("on");
+    } catch (err) {
+      setSyncStatus("err");
+      driveMsg(err.message, true);
+    }
+  }
+
+  function scheduleSync() {
+    if (!accessToken) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(driveSync, 1500);
+  }
+
+  // ---------- Wiring ----------
+  function wireEvents() {
+    document.getElementById("entryForm").addEventListener("submit", function(ev) {
+      ev.preventDefault();
+      const date = document.getElementById("dateInput").value;
+      const start = document.getElementById("startInput").value;
+      const end = document.getElementById("endInput").value;
+      const activity = document.getElementById("activityInput").value.trim();
+      const category = document.getElementById("categoryInput").value;
+      if (!date || !start || !end || !activity) return;
+      addOrUpdateEntry({ date, start, end, activity, category });
+      cancelEdit();
+    });
+
+    document.getElementById("cancelEditBtn").addEventListener("click", cancelEdit);
+
+    document.getElementById("monthPicker").addEventListener("change", renderSummary);
+    document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+    document.getElementById("copySummaryBtn").addEventListener("click", copySummary);
+
+    document.getElementById("exportJsonBtn").addEventListener("click", exportJson);
+    document.getElementById("importJsonBtn").addEventListener("click", () => document.getElementById("importFileInput").click());
+    document.getElementById("importFileInput").addEventListener("change", function(ev) {
+      const file = ev.target.files[0];
+      if (file) importJsonFile(file);
+      ev.target.value = "";
+    });
+
+    document.getElementById("saveClientIdBtn").addEventListener("click", function() {
+      const val = document.getElementById("clientIdInput").value.trim();
+      settings.clientId = val;
+      saveSettings();
+      driveMsg("Client ID saved.");
+      initGoogle();
+    });
+
+    document.getElementById("signInBtn").addEventListener("click", signIn);
+    document.getElementById("signOutBtn").addEventListener("click", signOut);
+    document.getElementById("syncNowBtn").addEventListener("click", driveSync);
+
+    // ---- Expenses ----
+    document.getElementById("expenseForm").addEventListener("submit", function(ev) {
+      ev.preventDefault();
+      const name = document.getElementById("expenseNameInput").value.trim();
+      const amount = parseFloat(document.getElementById("expenseAmountInput").value);
+      const date = document.getElementById("expenseDateInput").value;
+      const purpose = document.getElementById("expensePurposeInput").value.trim();
+      if (!name || !date || !purpose || isNaN(amount)) return;
+      addOrUpdateExpense({ name, amount, date, purpose });
+      cancelExpenseEdit();
+    });
+
+    document.getElementById("expenseCancelEditBtn").addEventListener("click", cancelExpenseEdit);
+
+    document.getElementById("receiptInput").addEventListener("change", function(ev) {
+      const file = ev.target.files[0];
+      removeReceiptOnSave = false;
+      const preview = document.getElementById("receiptPreview");
+      if (!file) { pendingReceiptFile = null; preview.innerHTML = ""; return; }
+      pendingReceiptFile = file;
+      if (file.type.startsWith("image/")) {
+        const url = URL.createObjectURL(file);
+        preview.innerHTML = "";
+        const img = document.createElement("img");
+        img.src = url;
+        img.onload = () => URL.revokeObjectURL(url);
+        preview.appendChild(img);
+      } else {
+        preview.innerHTML = `<span class="hint">Selected file: ${escapeHtml(file.name)}</span>`;
+      }
+    });
+
+    document.getElementById("expenseMonthPicker").addEventListener("change", renderExpenseSummary);
+    document.getElementById("exportExpenseCsvBtn").addEventListener("click", exportExpenseCsv);
+    document.getElementById("copyExpenseSummaryBtn").addEventListener("click", copyExpenseSummary);
+
+    // ---- Tabs ----
+    document.getElementById("tabHoursBtn").addEventListener("click", () => switchTab("hours"));
+    document.getElementById("tabExpensesBtn").addEventListener("click", () => switchTab("expenses"));
+  }
+
+  function switchTab(which) {
+    const hoursView = document.getElementById("hoursView");
+    const expensesView = document.getElementById("expensesView");
+    const hoursBtn = document.getElementById("tabHoursBtn");
+    const expensesBtn = document.getElementById("tabExpensesBtn");
+    if (which === "expenses") {
+      hoursView.style.display = "none";
+      expensesView.style.display = "block";
+      hoursBtn.classList.remove("active");
+      expensesBtn.classList.add("active");
+    } else {
+      hoursView.style.display = "block";
+      expensesView.style.display = "none";
+      expensesBtn.classList.remove("active");
+      hoursBtn.classList.add("active");
+    }
+  }
+
+  function init() {
+    loadEntries();
+    loadExpenses();
+    loadSettings();
+    document.getElementById("dateInput").value = todayIso();
+    document.getElementById("monthPicker").value = currentMonthValue();
+    document.getElementById("expenseDateInput").value = todayIso();
+    document.getElementById("expenseMonthPicker").value = currentMonthValue();
+    document.getElementById("clientIdInput").value = settings.clientId || "";
+    wireEvents();
+    render();
+    renderExpenses();
+    if (settings.clientId) initGoogle();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
