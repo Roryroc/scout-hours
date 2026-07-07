@@ -1362,6 +1362,19 @@
     document.getElementById("expenseDateInput").value = todayIso();
     document.getElementById("expenseMonthPicker").value = currentMonthValue();
     document.getElementById("clientIdInput").value = settings.clientId || "";
+
+    // If a clientId was passed in the URL (?clientId=...), use it automatically —
+    // handy for setting up a new device without having to paste a long string.
+    const urlClientId = new URLSearchParams(window.location.search).get("clientId");
+    if (urlClientId) {
+      settings.clientId = urlClientId.trim();
+      saveSettings();
+      document.getElementById("clientIdInput").value = settings.clientId;
+      driveMsg("Client ID loaded from link.");
+      // Clean the URL so the ID doesn't linger in browser history/bookmarks.
+      history.replaceState(null, "", window.location.pathname);
+    }
+
     wireEvents();
     render();
     renderExpenses();
