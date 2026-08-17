@@ -316,8 +316,11 @@
     <h2>Monthly Report</h2>
     <div class="month-picker-row">
       <div>
-        <label for="monthPicker">Month</label>
-        <input type="month" id="monthPicker">
+        <label for="monthPickerMonth">Month</label>
+        <div style="display:flex; gap:8px;">
+          <select id="monthPickerMonth" style="flex:1;"></select>
+          <select id="monthPickerYear" style="flex:1;"></select>
+        </div>
       </div>
       <div style="flex:0;">
         <button id="exportCsvBtn" class="secondary">Export CSV</button>
@@ -417,8 +420,11 @@
     <h2>Monthly Expense Report</h2>
     <div class="month-picker-row">
       <div>
-        <label for="expenseMonthPicker">Month</label>
-        <input type="month" id="expenseMonthPicker">
+        <label for="expenseMonthPickerMonth">Month</label>
+        <div style="display:flex; gap:8px;">
+          <select id="expenseMonthPickerMonth" style="flex:1;"></select>
+          <select id="expenseMonthPickerYear" style="flex:1;"></select>
+        </div>
       </div>
       <div style="flex:0;">
         <button id="exportExpenseCsvBtn" class="secondary">Export CSV</button>
@@ -509,6 +515,45 @@
   function currentMonthValue() {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
+  // ---------- Month/year dropdown helpers ----------
+  // Used instead of <input type="month"> because desktop Safari doesn't support
+  // that input type and falls back to a raw "YYYY-MM" text box; plain <select>
+  // dropdowns behave the same across every browser and platform.
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+
+  function populateMonthYearSelects(monthSelectId, yearSelectId) {
+    const monthSel = document.getElementById(monthSelectId);
+    const yearSel = document.getElementById(yearSelectId);
+    monthSel.innerHTML = MONTH_NAMES.map((name, i) =>
+      `<option value="${String(i + 1).padStart(2, "0")}">${name}</option>`).join("");
+    const nowY = new Date().getFullYear();
+    let years = [];
+    for (let y = nowY - 4; y <= nowY + 1; y++) years.push(y);
+    yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
+  }
+
+  function getMonthValue(monthSelectId, yearSelectId) {
+    const m = document.getElementById(monthSelectId).value;
+    const y = document.getElementById(yearSelectId).value;
+    return `${y}-${m}`;
+  }
+
+  function setMonthValue(monthSelectId, yearSelectId, value) {
+    const [y, m] = value.split("-");
+    const yearSel = document.getElementById(yearSelectId);
+    // Make sure the target year is selectable even if it's outside the
+    // default generated range (e.g. old imported data).
+    if (![...yearSel.options].some(o => o.value === y)) {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = y;
+      yearSel.appendChild(opt);
+    }
+    yearSel.value = y;
+    document.getElementById(monthSelectId).value = m;
   }
 
   function escapeHtml(str) {
@@ -804,8 +849,7 @@
   }
 
   function renderSummary() {
-    const monthPicker = document.getElementById("monthPicker");
-    const monthValue = monthPicker.value || currentMonthValue();
+    const monthValue = getMonthValue("monthPickerMonth", "monthPickerYear") || currentMonthValue();
     const list = entriesForMonth(monthValue).sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return a.start < b.start ? -1 : 1;
@@ -880,8 +924,7 @@
   }
 
   function renderExpenseSummary() {
-    const monthPicker = document.getElementById("expenseMonthPicker");
-    const monthValue = monthPicker.value || currentMonthValue();
+    const monthValue = getMonthValue("expenseMonthPickerMonth", "expenseMonthPickerYear") || currentMonthValue();
     const list = expensesForMonth(monthValue).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
     let total = 0;
@@ -1070,6 +1113,8 @@
     pill.textContent = state === "on" ? "Synced with Drive" : state === "err" ? "Sync error" : "Not connected";
   }
 
+  let silentAttemptInFlight = false;
+
   function initGoogle() {
     if (!settings.clientId) return;
     if (!window.google || !google.accounts || !google.accounts.oauth2) {
@@ -1083,10 +1128,16 @@
       scope: DRIVE_SCOPE,
       callback: (resp) => {
         if (resp.error) {
-          driveMsg("Sign-in failed: " + resp.error, true);
-          setSyncStatus("err");
+          // Don't show a scary error for a background auto-reconnect attempt —
+          // just leave the Sign in button available for the user to click.
+          if (!silentAttemptInFlight) {
+            driveMsg("Sign-in failed: " + resp.error, true);
+            setSyncStatus("err");
+          }
+          silentAttemptInFlight = false;
           return;
         }
+        silentAttemptInFlight = false;
         accessToken = resp.access_token;
         document.getElementById("signInBtn").style.display = "none";
         document.getElementById("signOutBtn").style.display = "inline-block";
@@ -1096,10 +1147,19 @@
       }
     });
     document.getElementById("signInBtn").style.display = "inline-block";
+
+    // Google sign-in doesn't persist across page loads on its own, so try a
+    // silent, no-UI reconnect in the background each time the app opens.
+    // This works if the browser still has an active Google session and you
+    // previously approved this app — no click needed. If it can't be done
+    // silently, this just fails quietly and the Sign in button stays put.
+    silentAttemptInFlight = true;
+    tokenClient.requestAccessToken({ prompt: "none" });
   }
 
   function signIn() {
     if (!tokenClient) { driveMsg("Enter and save your Client ID first.", true); return; }
+    silentAttemptInFlight = false;
     tokenClient.requestAccessToken({ prompt: "consent" });
   }
 
@@ -1278,7 +1338,8 @@
 
     document.getElementById("cancelEditBtn").addEventListener("click", cancelEdit);
 
-    document.getElementById("monthPicker").addEventListener("change", renderSummary);
+    document.getElementById("monthPickerMonth").addEventListener("change", renderSummary);
+    document.getElementById("monthPickerYear").addEventListener("change", renderSummary);
     document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
     document.getElementById("copySummaryBtn").addEventListener("click", copySummary);
 
@@ -1345,7 +1406,8 @@
       }
     });
 
-    document.getElementById("expenseMonthPicker").addEventListener("change", renderExpenseSummary);
+    document.getElementById("expenseMonthPickerMonth").addEventListener("change", renderExpenseSummary);
+    document.getElementById("expenseMonthPickerYear").addEventListener("change", renderExpenseSummary);
     document.getElementById("exportExpenseCsvBtn").addEventListener("click", exportExpenseCsv);
     document.getElementById("copyExpenseSummaryBtn").addEventListener("click", copyExpenseSummary);
 
@@ -1377,9 +1439,11 @@
     loadExpenses();
     loadSettings();
     document.getElementById("dateInput").value = todayIso();
-    document.getElementById("monthPicker").value = currentMonthValue();
+    populateMonthYearSelects("monthPickerMonth", "monthPickerYear");
+    setMonthValue("monthPickerMonth", "monthPickerYear", currentMonthValue());
     document.getElementById("expenseDateInput").value = todayIso();
-    document.getElementById("expenseMonthPicker").value = currentMonthValue();
+    populateMonthYearSelects("expenseMonthPickerMonth", "expenseMonthPickerYear");
+    setMonthValue("expenseMonthPickerMonth", "expenseMonthPickerYear", currentMonthValue());
     document.getElementById("clientIdInput").value = settings.clientId || "";
 
     // If a clientId was passed in the URL (?clientId=...), use it automatically —
