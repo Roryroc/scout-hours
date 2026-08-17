@@ -676,20 +676,28 @@
       expenses.push(Object.assign({ id, receipt: { hasFile: false, driveFileId: null, mimeType: null, fileName: null } }, data));
     }
 
-    if (removeReceiptOnSave) {
+    // Snapshot the pending receipt file *before* any await, since other code
+    // (e.g. the caller resetting the form right after this call) may clear
+    // the shared pendingReceiptFile variable while we're mid-await.
+    const fileForThisSave = pendingReceiptFile;
+    const removeForThisSave = removeReceiptOnSave;
+    pendingReceiptFile = null;
+    removeReceiptOnSave = false;
+
+    if (removeForThisSave) {
       const exp = expenses.find(x => x.id === id);
       if (exp && exp.receipt && exp.receipt.driveFileId) deleteDriveFile(exp.receipt.driveFileId);
       if (exp) exp.receipt = { hasFile: false, driveFileId: null, mimeType: null, fileName: null };
       await idbDelete(id).catch(() => {});
-    } else if (pendingReceiptFile) {
+    } else if (fileForThisSave) {
       const exp = expenses.find(x => x.id === id);
       if (exp && exp.receipt && exp.receipt.driveFileId) deleteDriveFile(exp.receipt.driveFileId); // old receipt replaced
-      await idbPut(id, { blob: pendingReceiptFile, mimeType: pendingReceiptFile.type, fileName: pendingReceiptFile.name }).catch(() => {});
-      if (exp) exp.receipt = { hasFile: true, driveFileId: null, mimeType: pendingReceiptFile.type, fileName: pendingReceiptFile.name };
+      const fileMime = fileForThisSave.type;
+      const fileName = fileForThisSave.name;
+      await idbPut(id, { blob: fileForThisSave, mimeType: fileMime, fileName: fileName }).catch(() => {});
+      if (exp) exp.receipt = { hasFile: true, driveFileId: null, mimeType: fileMime, fileName: fileName };
     }
 
-    pendingReceiptFile = null;
-    removeReceiptOnSave = false;
     saveExpenses();
   }
 
@@ -1295,15 +1303,26 @@
     document.getElementById("syncNowBtn").addEventListener("click", driveSync);
 
     // ---- Expenses ----
-    document.getElementById("expenseForm").addEventListener("submit", function(ev) {
+    document.getElementById("expenseForm").addEventListener("submit", async function(ev) {
       ev.preventDefault();
       const name = document.getElementById("expenseNameInput").value.trim();
       const amount = parseFloat(document.getElementById("expenseAmountInput").value);
       const date = document.getElementById("expenseDateInput").value;
       const purpose = document.getElementById("expensePurposeInput").value.trim();
       if (!name || !date || !purpose || isNaN(amount)) return;
-      addOrUpdateExpense({ name, amount, date, purpose });
-      cancelExpenseEdit();
+      const btn = document.getElementById("expenseSaveBtn");
+      const originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Saving...";
+      try {
+        await addOrUpdateExpense({ name, amount, date, purpose });
+        cancelExpenseEdit();
+      } catch (err) {
+        alert("Could not save expense: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
     });
 
     document.getElementById("expenseCancelEditBtn").addEventListener("click", cancelExpenseEdit);
