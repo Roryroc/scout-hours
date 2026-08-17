@@ -293,6 +293,19 @@
 
   <div class="card">
     <h2>Entries</h2>
+    <div class="month-picker-row">
+      <div>
+        <label for="entriesFromDate">From</label>
+        <input type="date" id="entriesFromDate">
+      </div>
+      <div>
+        <label for="entriesToDate">To</label>
+        <input type="date" id="entriesToDate">
+      </div>
+      <div style="flex:0;">
+        <button id="entriesClearFilterBtn" class="secondary">Clear</button>
+      </div>
+    </div>
     <div class="table-wrap">
       <table id="entriesTable">
         <thead>
@@ -398,6 +411,19 @@
 
   <div class="card">
     <h2>Expenses</h2>
+    <div class="month-picker-row">
+      <div>
+        <label for="expensesFromDate">From</label>
+        <input type="date" id="expensesFromDate">
+      </div>
+      <div>
+        <label for="expensesToDate">To</label>
+        <input type="date" id="expensesToDate">
+      </div>
+      <div style="flex:0;">
+        <button id="expensesClearFilterBtn" class="secondary">Clear</button>
+      </div>
+    </div>
     <div class="table-wrap">
       <table id="expensesTable">
         <thead>
@@ -531,6 +557,17 @@
   function currentMonthValue() {
     const d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  }
+
+  function currentMonthStart() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-01";
+  }
+
+  function currentMonthEnd() {
+    const d = new Date();
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(lastDay).padStart(2, "0");
   }
 
   // ---------- Month/year dropdown helpers ----------
@@ -815,9 +852,21 @@
   // ---------- Rendering ----------
   function sortedEntries() {
     return [...entries].sort((a, b) => {
-      if (a.date !== b.date) return a.date < b.date ? 1 : -1; // newest first
-      return a.start < b.start ? 1 : -1;
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1; // oldest first
+      return a.start < b.start ? -1 : 1;
     });
+  }
+
+  function inDateRange(dateStr, fromVal, toVal) {
+    if (fromVal && dateStr < fromVal) return false;
+    if (toVal && dateStr > toVal) return false;
+    return true;
+  }
+
+  function filteredSortedEntries() {
+    const from = document.getElementById("entriesFromDate").value;
+    const to = document.getElementById("entriesToDate").value;
+    return sortedEntries().filter(e => inDateRange(e.date, from, to));
   }
 
   function render() {
@@ -832,7 +881,7 @@
 
   function renderTable() {
     const body = document.getElementById("entriesBody");
-    const list = sortedEntries();
+    const list = filteredSortedEntries();
     body.innerHTML = "";
     document.getElementById("emptyState").style.display = list.length ? "none" : "block";
     for (const e of list) {
@@ -899,7 +948,13 @@
 
   // ---------- Expense rendering ----------
   function sortedExpenses() {
-    return [...expenses].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    return [...expenses].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)); // oldest first
+  }
+
+  function filteredSortedExpenses() {
+    const from = document.getElementById("expensesFromDate").value;
+    const to = document.getElementById("expensesToDate").value;
+    return sortedExpenses().filter(x => inDateRange(x.date, from, to));
   }
 
   function formatMoney(n) {
@@ -909,7 +964,7 @@
 
   function renderExpensesTable() {
     const body = document.getElementById("expensesBody");
-    const list = sortedExpenses();
+    const list = filteredSortedExpenses();
     body.innerHTML = "";
     document.getElementById("expensesEmptyState").style.display = list.length ? "none" : "block";
     for (const x of list) {
@@ -965,7 +1020,7 @@
 
   function exportExpenseCsv() {
     const rows = [["Date", "Name", "Purpose", "Amount", "Has Receipt"]];
-    for (const x of sortedExpenses().slice().reverse()) {
+    for (const x of filteredSortedExpenses()) {
       rows.push([x.date, x.name, x.purpose, (Number(x.amount) || 0).toFixed(2), (x.receipt && x.receipt.hasFile) ? "Yes" : "No"]);
     }
     const csv = rows.map(r => r.map(csvEscape).join(",")).join("\n");
@@ -1143,7 +1198,7 @@
   // ---------- CSV export ----------
   function exportCsv() {
     const rows = [["Date", "Start", "Stop", "Duration (hrs)", "Category", "Activity"]];
-    for (const e of sortedEntries().slice().reverse()) {
+    for (const e of filteredSortedEntries()) {
       const mins = computeDurationMinutes(e.start, e.end);
       rows.push([e.date, e.start, e.end, decimalHours(mins), e.category || "", e.activity]);
     }
@@ -1502,6 +1557,14 @@
 
     document.getElementById("cancelEditBtn").addEventListener("click", cancelEdit);
 
+    document.getElementById("entriesFromDate").addEventListener("change", renderTable);
+    document.getElementById("entriesToDate").addEventListener("change", renderTable);
+    document.getElementById("entriesClearFilterBtn").addEventListener("click", () => {
+      document.getElementById("entriesFromDate").value = "";
+      document.getElementById("entriesToDate").value = "";
+      renderTable();
+    });
+
     document.getElementById("monthPickerMonth").addEventListener("change", renderSummary);
     document.getElementById("monthPickerYear").addEventListener("change", renderSummary);
     document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
@@ -1551,6 +1614,14 @@
     });
 
     document.getElementById("expenseCancelEditBtn").addEventListener("click", cancelExpenseEdit);
+
+    document.getElementById("expensesFromDate").addEventListener("change", renderExpensesTable);
+    document.getElementById("expensesToDate").addEventListener("change", renderExpensesTable);
+    document.getElementById("expensesClearFilterBtn").addEventListener("click", () => {
+      document.getElementById("expensesFromDate").value = "";
+      document.getElementById("expensesToDate").value = "";
+      renderExpensesTable();
+    });
 
     document.getElementById("receiptInput").addEventListener("change", function(ev) {
       const file = ev.target.files[0];
@@ -1610,6 +1681,15 @@
     document.getElementById("expenseDateInput").value = todayIso();
     populateMonthYearSelects("expenseMonthPickerMonth", "expenseMonthPickerYear");
     setMonthValue("expenseMonthPickerMonth", "expenseMonthPickerYear", currentMonthValue());
+
+    // Default the Entries and Expenses tables to the current month too, so all
+    // four tiles (Entries, Monthly Report, Expenses, Monthly Expense Report)
+    // start scoped to "this month" until the user picks a different range.
+    document.getElementById("entriesFromDate").value = currentMonthStart();
+    document.getElementById("entriesToDate").value = currentMonthEnd();
+    document.getElementById("expensesFromDate").value = currentMonthStart();
+    document.getElementById("expensesToDate").value = currentMonthEnd();
+
     document.getElementById("clientIdInput").value = settings.clientId || "";
 
     // If a clientId was passed in the URL (?clientId=...), use it automatically —
