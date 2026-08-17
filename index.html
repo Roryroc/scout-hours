@@ -441,11 +441,27 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>Email Recap</h2>
+    <p class="hint">Builds a ZIP for the selected month (CSV + a table image + any receipt photos) and opens an email draft with the recap text already filled in. Browsers can't auto-attach files to an email, so you'll need to drag the downloaded ZIP (or the files inside it) into the draft yourself.</p>
+    <div class="btn-row">
+      <button id="emailRecapBtn">Prepare Email Recap</button>
+    </div>
+    <div id="emailRecapMsg" class="hint"></div>
+    <label for="emailBodyText" style="margin-top:10px;">Email text (auto-filled — copy if the email draft didn't open)</label>
+    <textarea id="emailBodyText" rows="4" readonly></textarea>
+    <div class="btn-row">
+      <button id="copyEmailBodyBtn" class="secondary">Copy Email Text</button>
+    </div>
+  </div>
+
 </div>
 
 </main>
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -956,6 +972,154 @@
     downloadBlob(csv, "scout-expenses.csv", "text/csv");
   }
 
+  // ---------- Email recap ----------
+  function sanitizeFileNamePart(str) {
+    return String(str).replace(/[^\w.\- ]+/g, "_").trim().slice(0, 60);
+  }
+
+  async function renderExpenseTableImage(monthName, year, list, total) {
+    if (typeof html2canvas === "undefined") return null;
+    const wrap = document.createElement("div");
+    wrap.style.position = "fixed";
+    wrap.style.left = "-99999px";
+    wrap.style.top = "0";
+    wrap.style.width = "680px";
+    wrap.style.background = "#ffffff";
+    wrap.style.padding = "20px";
+    wrap.style.fontFamily = "-apple-system, Helvetica, Arial, sans-serif";
+    wrap.style.color = "#1c2530";
+
+    const rowsHtml = list.map(x => `
+      <tr>
+        <td style="padding:6px 8px; border-bottom:1px solid #dde3ea;">${displayDate(x.date)}</td>
+        <td style="padding:6px 8px; border-bottom:1px solid #dde3ea;">${escapeHtml(x.name)}</td>
+        <td style="padding:6px 8px; border-bottom:1px solid #dde3ea;">${escapeHtml(x.purpose)}</td>
+        <td style="padding:6px 8px; border-bottom:1px solid #dde3ea; text-align:right;">${formatMoney(x.amount)}</td>
+      </tr>
+    `).join("");
+
+    wrap.innerHTML = `
+      <h2 style="margin:0 0 4px 0; font-size:18px; color:#103d78;">Expenses - ${monthName} ${year}</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:12px;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:6px 8px; border-bottom:2px solid #103d78; font-size:11px; text-transform:uppercase; color:#6b7785;">Date</th>
+            <th style="text-align:left; padding:6px 8px; border-bottom:2px solid #103d78; font-size:11px; text-transform:uppercase; color:#6b7785;">Name</th>
+            <th style="text-align:left; padding:6px 8px; border-bottom:2px solid #103d78; font-size:11px; text-transform:uppercase; color:#6b7785;">Purpose</th>
+            <th style="text-align:right; padding:6px 8px; border-bottom:2px solid #103d78; font-size:11px; text-transform:uppercase; color:#6b7785;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      <div style="margin-top:14px; padding:10px 14px; background:#eaf3ea; border:1px solid #c8e0c8; border-radius:8px; font-weight:700; color:#2e7d32; font-size:15px;">
+        Total: ${formatMoney(total)} (${list.length} ${list.length === 1 ? "expense" : "expenses"})
+      </div>
+    `;
+
+    document.body.appendChild(wrap);
+    try {
+      const canvas = await html2canvas(wrap, { backgroundColor: "#ffffff", scale: 2 });
+      return await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    } finally {
+      wrap.remove();
+    }
+  }
+
+  async function buildMonthlyEmailZip(monthValue, monthName, year, list, total) {
+    if (typeof JSZip === "undefined") throw new Error("ZIP library didn't load — check your internet connection and try again.");
+    const zip = new JSZip();
+
+    const csvRows = [["Date", "Name", "Purpose", "Amount", "Has Receipt"]];
+    for (const x of list) {
+      csvRows.push([x.date, x.name, x.purpose, (Number(x.amount) || 0).toFixed(2), (x.receipt && x.receipt.hasFile) ? "Yes" : "No"]);
+    }
+    const csv = csvRows.map(r => r.map(csvEscape).join(",")).join("\n");
+    zip.file(`expenses-${monthValue}.csv`, csv);
+
+    const imgBlob = await renderExpenseTableImage(monthName, year, list, total).catch(() => null);
+    if (imgBlob) zip.file(`expenses-${monthValue}.png`, imgBlob);
+
+    const receiptsFolder = zip.folder("receipts");
+    for (const x of list) {
+      if (x.receipt && x.receipt.hasFile) {
+        try {
+          let cached = await idbGet(x.id);
+          if (!cached && x.receipt.driveFileId && accessToken) {
+            const blob = await downloadDriveFileBlob(x.receipt.driveFileId);
+            cached = { blob, mimeType: x.receipt.mimeType, fileName: x.receipt.fileName };
+          }
+          if (cached && cached.blob) {
+            const safeName = sanitizeFileNamePart(x.receipt.fileName || `receipt-${x.id}.jpg`);
+            receiptsFolder.file(`${x.date}_${sanitizeFileNamePart(x.name)}_${safeName}`, cached.blob);
+          }
+        } catch (err) {
+          console.warn("Could not include receipt for", x.id, err);
+        }
+      }
+    }
+
+    return zip.generateAsync({ type: "blob" });
+  }
+
+  async function prepareEmailRecap() {
+    const monthValue = getMonthValue("expenseMonthPickerMonth", "expenseMonthPickerYear") || currentMonthValue();
+    const list = expensesForMonth(monthValue).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const msgEl = document.getElementById("emailRecapMsg");
+
+    if (!list.length) {
+      msgEl.textContent = "No expenses for the selected month — nothing to include.";
+      msgEl.style.color = "var(--red)";
+      return;
+    }
+
+    let total = 0;
+    list.forEach(x => { total += Number(x.amount) || 0; });
+    const [y, m] = monthValue.split("-");
+    const monthName = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1).toLocaleString("default", { month: "long" });
+
+    const btn = document.getElementById("emailRecapBtn");
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Preparing...";
+    msgEl.style.color = "var(--muted)";
+    msgEl.textContent = "Building CSV, table image, and gathering receipts...";
+
+    try {
+      const zipBlob = await buildMonthlyEmailZip(monthValue, monthName, y, list, total);
+      downloadBlob(zipBlob, `scout-expenses-${monthValue}.zip`, "application/zip");
+
+      const bodyText = `Below are the expenses for ${monthName} ${y}. Total was ${formatMoney(total)}. Let me know if you have any questions.\n\nYIS\nRory`;
+      document.getElementById("emailBodyText").value = bodyText;
+
+      const subject = encodeURIComponent(`Expense Recap - ${monthName} ${y}`);
+      const body = encodeURIComponent(bodyText);
+      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+
+      msgEl.textContent = `Downloaded scout-expenses-${monthValue}.zip (CSV, table image${list.some(x => x.receipt && x.receipt.hasFile) ? ", and receipts" : ""}). An email draft should have opened — drag the files from that ZIP into it.`;
+    } catch (err) {
+      msgEl.textContent = "Could not prepare the recap: " + err.message;
+      msgEl.style.color = "var(--red)";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  }
+
+  function copyEmailBodyText() {
+    const textarea = document.getElementById("emailBodyText");
+    if (!textarea.value) return;
+    textarea.select();
+    textarea.setSelectionRange(0, 999999);
+    const btn = document.getElementById("copyEmailBodyBtn");
+    const flash = () => { const orig = btn.textContent; btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = orig; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textarea.value).then(flash).catch(() => document.execCommand("copy") && flash());
+    } else {
+      document.execCommand("copy");
+      flash();
+    }
+  }
+
   async function viewReceipt(id) {
     const exp = expenses.find(x => x.id === id);
     if (!exp || !exp.receipt || !exp.receipt.hasFile) return;
@@ -1410,6 +1574,8 @@
     document.getElementById("expenseMonthPickerYear").addEventListener("change", renderExpenseSummary);
     document.getElementById("exportExpenseCsvBtn").addEventListener("click", exportExpenseCsv);
     document.getElementById("copyExpenseSummaryBtn").addEventListener("click", copyExpenseSummary);
+    document.getElementById("emailRecapBtn").addEventListener("click", prepareEmailRecap);
+    document.getElementById("copyEmailBodyBtn").addEventListener("click", copyEmailBodyText);
 
     // ---- Tabs ----
     document.getElementById("tabHoursBtn").addEventListener("click", () => switchTab("hours"));
