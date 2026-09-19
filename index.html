@@ -469,9 +469,11 @@
 
   <div class="card">
     <h2>Email Recap</h2>
-    <p class="hint">Builds a ZIP for the selected month (CSV + a table image + any receipt photos) and opens an email draft with the recap text already filled in. Browsers can't auto-attach files to an email, so you'll need to drag the downloaded ZIP (or the files inside it) into the draft yourself.</p>
+    <p class="hint">Gathers the CSV, a table image, and any receipt photos for the selected month. Where supported, tap "Share Recap" to send everything straight to Mail (or any app) with files already attached. Otherwise, an email draft opens and a "Download ZIP" button appears — click it, then drag the files from that ZIP into the draft.</p>
     <div class="btn-row">
       <button id="emailRecapBtn">Prepare Email Recap</button>
+      <button id="shareRecapBtn" class="secondary" style="display:none;">Share Recap</button>
+      <button id="downloadZipBtn" class="secondary" style="display:none;">Download ZIP</button>
     </div>
     <div id="emailRecapMsg" class="hint"></div>
     <label for="emailBodyText" style="margin-top:10px;">Email text (auto-filled — copy if the email draft didn't open)</label>
@@ -1080,21 +1082,19 @@
     }
   }
 
-  async function buildMonthlyEmailZip(monthValue, monthName, year, list, total) {
-    if (typeof JSZip === "undefined") throw new Error("ZIP library didn't load — check your internet connection and try again.");
-    const zip = new JSZip();
-
+  // Gathers the raw materials for a monthly recap (CSV blob, table image blob,
+  // and any receipt files) without packaging them — used by both the
+  // Web Share path (individual files) and the ZIP/mailto fallback path.
+  async function gatherRecapMaterials(monthValue, monthName, year, list, total) {
     const csvRows = [["Date", "Name", "Purpose", "Amount", "Has Receipt"]];
     for (const x of list) {
       csvRows.push([x.date, x.name, x.purpose, (Number(x.amount) || 0).toFixed(2), (x.receipt && x.receipt.hasFile) ? "Yes" : "No"]);
     }
-    const csv = csvRows.map(r => r.map(csvEscape).join(",")).join("\n");
-    zip.file(`expenses-${monthValue}.csv`, csv);
+    const csvBlob = new Blob([csvRows.map(r => r.map(csvEscape).join(",")).join("\n")], { type: "text/csv" });
 
     const imgBlob = await renderExpenseTableImage(monthName, year, list, total).catch(() => null);
-    if (imgBlob) zip.file(`expenses-${monthValue}.png`, imgBlob);
 
-    const receiptsFolder = zip.folder("receipts");
+    const receiptFiles = [];
     for (const x of list) {
       if (x.receipt && x.receipt.hasFile) {
         try {
@@ -1105,7 +1105,7 @@
           }
           if (cached && cached.blob) {
             const safeName = sanitizeFileNamePart(x.receipt.fileName || `receipt-${x.id}.jpg`);
-            receiptsFolder.file(`${x.date}_${sanitizeFileNamePart(x.name)}_${safeName}`, cached.blob);
+            receiptFiles.push({ blob: cached.blob, name: `${x.date}_${sanitizeFileNamePart(x.name)}_${safeName}` });
           }
         } catch (err) {
           console.warn("Could not include receipt for", x.id, err);
@@ -1113,13 +1113,32 @@
       }
     }
 
+    return { csvBlob, imgBlob, receiptFiles };
+  }
+
+  async function buildZipFromMaterials(monthValue, csvBlob, imgBlob, receiptFiles) {
+    if (typeof JSZip === "undefined") throw new Error("ZIP library didn't load — check your internet connection and try again.");
+    const zip = new JSZip();
+    zip.file(`expenses-${monthValue}.csv`, csvBlob);
+    if (imgBlob) zip.file(`expenses-${monthValue}.png`, imgBlob);
+    const receiptsFolder = zip.folder("receipts");
+    for (const rf of receiptFiles) receiptsFolder.file(rf.name, rf.blob);
     return zip.generateAsync({ type: "blob" });
   }
+
+  let preparedRecap = null; // { files, bodyText, subject } — set when Web Share (with files) is available
+  let preparedZipDownload = null; // { blob, filename } — set on the fallback path
 
   async function prepareEmailRecap() {
     const monthValue = getMonthValue("expenseMonthPickerMonth", "expenseMonthPickerYear") || currentMonthValue();
     const list = expensesForMonth(monthValue).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     const msgEl = document.getElementById("emailRecapMsg");
+    const shareBtn = document.getElementById("shareRecapBtn");
+    const zipBtn = document.getElementById("downloadZipBtn");
+    shareBtn.style.display = "none";
+    zipBtn.style.display = "none";
+    preparedRecap = null;
+    preparedZipDownload = null;
 
     if (!list.length) {
       msgEl.textContent = "No expenses for the selected month — nothing to include.";
@@ -1140,23 +1159,72 @@
     msgEl.textContent = "Building CSV, table image, and gathering receipts...";
 
     try {
-      const zipBlob = await buildMonthlyEmailZip(monthValue, monthName, y, list, total);
-      downloadBlob(zipBlob, `scout-expenses-${monthValue}.zip`, "application/zip");
-
+      const { csvBlob, imgBlob, receiptFiles } = await gatherRecapMaterials(monthValue, monthName, y, list, total);
       const bodyText = `Below are the expenses for ${monthName} ${y}. Total was ${formatMoney(total)}. Let me know if you have any questions.\n\nYIS\nRory`;
       document.getElementById("emailBodyText").value = bodyText;
+      const subjectText = `Expense Recap - ${monthName} ${y}`;
 
-      const subject = encodeURIComponent(`Expense Recap - ${monthName} ${y}`);
-      const body = encodeURIComponent(bodyText);
-      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+      const files = [];
+      files.push(new File([csvBlob], `expenses-${monthValue}.csv`, { type: "text/csv" }));
+      if (imgBlob) files.push(new File([imgBlob], `expenses-${monthValue}.png`, { type: "image/png" }));
+      for (const rf of receiptFiles) files.push(new File([rf.blob], rf.name, { type: rf.blob.type || "application/octet-stream" }));
 
-      msgEl.textContent = `Downloaded scout-expenses-${monthValue}.zip (CSV, table image${list.some(x => x.receipt && x.receipt.hasFile) ? ", and receipts" : ""}). An email draft should have opened — drag the files from that ZIP into it.`;
+      const canShareFiles = !!(navigator.canShare && navigator.share && navigator.canShare({ files }));
+
+      if (canShareFiles) {
+        // Mobile path: hand the actual files to the OS share sheet so Mail
+        // (or any app the user picks) receives them as real attachments —
+        // a mailto: link can never do this on its own.
+        preparedRecap = { files, bodyText, subject: subjectText };
+        shareBtn.style.display = "inline-block";
+        msgEl.textContent = `Ready — tap "Share Recap" to send the CSV, table image${receiptFiles.length ? `, and ${receiptFiles.length} receipt(s)` : ""} with everything actually attached.`;
+      } else {
+        // Desktop/fallback path: ZIP + mailto draft, files dragged in manually.
+        // The ZIP blob is built now, but Safari silently blocks a download
+        // triggered this long after the original click (async work in between
+        // clears its "user gesture" window) — so we don't call downloadBlob()
+        // here. Instead we stash the blob and reveal a button; clicking that
+        // button is itself a fresh, synchronous gesture, which Safari allows.
+        const zipBlob = await buildZipFromMaterials(monthValue, csvBlob, imgBlob, receiptFiles);
+        preparedZipDownload = { blob: zipBlob, filename: `scout-expenses-${monthValue}.zip` };
+        zipBtn.style.display = "inline-block";
+
+        const subject = encodeURIComponent(subjectText);
+        const body = encodeURIComponent(bodyText);
+        window.location.href = `mailto:?subject=${subject}&body=${body}`;
+
+        msgEl.textContent = `An email draft should have opened. Click "Download ZIP" below to save the CSV, table image${receiptFiles.length ? ", and receipts" : ""}, then drag those files into the draft.`;
+      }
     } catch (err) {
       msgEl.textContent = "Could not prepare the recap: " + err.message;
       msgEl.style.color = "var(--red)";
     } finally {
       btn.disabled = false;
       btn.textContent = originalLabel;
+    }
+  }
+
+  function downloadZipRecap() {
+    if (!preparedZipDownload) return;
+    downloadBlob(preparedZipDownload.blob, preparedZipDownload.filename, "application/zip");
+    document.getElementById("emailRecapMsg").textContent = `Downloaded ${preparedZipDownload.filename}. Drag the files from that ZIP into the email draft.`;
+  }
+
+  async function shareRecap() {
+    if (!preparedRecap) return;
+    const msgEl = document.getElementById("emailRecapMsg");
+    try {
+      await navigator.share({
+        files: preparedRecap.files,
+        title: preparedRecap.subject,
+        text: preparedRecap.bodyText
+      });
+      msgEl.style.color = "var(--muted)";
+      msgEl.textContent = "Shared! If you picked Mail, a draft should now have the files attached.";
+    } catch (err) {
+      if (err && err.name === "AbortError") return; // user cancelled the share sheet — not an error
+      msgEl.style.color = "var(--red)";
+      msgEl.textContent = "Share failed: " + err.message;
     }
   }
 
@@ -1646,6 +1714,8 @@
     document.getElementById("exportExpenseCsvBtn").addEventListener("click", exportExpenseCsv);
     document.getElementById("copyExpenseSummaryBtn").addEventListener("click", copyExpenseSummary);
     document.getElementById("emailRecapBtn").addEventListener("click", prepareEmailRecap);
+    document.getElementById("shareRecapBtn").addEventListener("click", shareRecap);
+    document.getElementById("downloadZipBtn").addEventListener("click", downloadZipRecap);
     document.getElementById("copyEmailBodyBtn").addEventListener("click", copyEmailBodyText);
 
     // ---- Tabs ----
